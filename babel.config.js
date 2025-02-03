@@ -5,6 +5,7 @@ module.exports = {
       '@babel/preset-env',
       {
         include: [
+          '@babel/plugin-proposal-class-properties',
           '@babel/plugin-proposal-optional-chaining',
           '@babel/plugin-proposal-nullish-coalescing-operator',
           '@babel/plugin-proposal-numeric-separator',
@@ -16,7 +17,7 @@ module.exports = {
         targets: '> 1%, not dead, not ie 11, not op_mini all',
       },
     ],
-    '@babel/preset-react',
+    ['@babel/preset-react', { runtime: 'automatic' }],
     '@babel/preset-typescript',
   ],
 }

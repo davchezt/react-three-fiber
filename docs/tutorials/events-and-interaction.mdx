@@ -1,7 +1,7 @@
 ---
 title: 'Events and Interaction'
 description: Let's make our meshes react to user input.
-nav: 14
+nav: 13
 ---
 
 This tutorial will assume some React knowledge, and will be based on [this starter codesandbox](https://codesandbox.io/s/getting-started-01-12q81?from-embed), so just fork it and follow along!
@@ -10,7 +10,7 @@ After we have our continuous loop running the next step would be to allow our me
 
 ## User Interaction
 
-Any mesh in React Three Fiber has a large number of events, 13 to be more precise:
+Any Object3D that has a raycast method can receive a large number of events, for instance a mesh:
 
 ```jsx
 <mesh
@@ -35,7 +35,7 @@ From this we can see that what we need to do is use the old `onClick` event we u
 Let's add it then:
 
 ```jsx
-<mesh onClick={() => alert('Hellooo')} ref={myMesh}>
+<mesh onClick={() => alert('Hellooo')}>
   <boxGeometry />
   <meshPhongMaterial color="royalblue" />
 </mesh>
@@ -52,7 +52,7 @@ const [active, setActive] = useState(false)
 After we have this we can set the scale with a ternary operator like so:
 
 ```jsx
-<mesh scale={active ? 1.5 : 1} onClick={() => setActive(!active)} ref={myMesh}>
+<mesh scale={active ? 1.5 : 1} onClick={() => setActive(!active)}>
   <boxGeometry />
   <meshPhongMaterial color="royalblue" />
 </mesh>

@@ -1,9 +1,25 @@
 import * as THREE from 'three'
 import * as React from 'react'
 import create, { GetState, SetState, StoreApi, UseBoundStore } from 'zustand'
-import { prepare } from './renderer'
 import { DomEvent, EventManager, PointerCaptureTarget, ThreeEvent } from './events'
-import { calculateDpr } from './utils'
+import { _XRFrame, calculateDpr, Camera, isOrthographicCamera, updateCamera } from './utils'
+import { Advance, Invalidate } from './loop'
+
+// Keys that shouldn't be copied between R3F stores
+export const privateKeys = [
+  'set',
+  'get',
+  'setSize',
+  'setFrameloop',
+  'setDpr',
+  'events',
+  'invalidate',
+  'advance',
+  'size',
+  'viewport',
+] as const
+
+export type PrivateKeys = typeof privateKeys[number]
 
 export interface Intersection extends THREE.Intersection {
   eventObject: THREE.Object3D
@@ -16,7 +32,14 @@ export type Subscription = {
 }
 
 export type Dpr = number | [min: number, max: number]
-export type Size = { width: number; height: number }
+export type Size = {
+  width: number
+  height: number
+  top: number
+  left: number
+  /** @deprecated `updateStyle` is now disabled for OffscreenCanvas and will be removed in v9. */
+  updateStyle?: boolean
+}
 export type Viewport = Size & {
   /** The initial pixel ratio */
   initialDpr: number
@@ -30,8 +53,7 @@ export type Viewport = Size & {
   aspect: number
 }
 
-export type Camera = THREE.OrthographicCamera | THREE.PerspectiveCamera
-export type RenderCallback = (state: RootState, delta: number, frame?: THREE.XRFrame) => void
+export type RenderCallback = (state: RootState, delta: number, frame?: _XRFrame) => void
 
 export type Performance = {
   /** Current performance normal, between min and max */
@@ -47,10 +69,7 @@ export type Performance = {
 }
 
 export type Renderer = { render: (scene: THREE.Scene, camera: THREE.Camera) => any }
-
 export const isRenderer = (def: any) => !!def?.render
-export const isOrthographicCamera = (def: any): def is THREE.OrthographicCamera =>
-  def && (def as THREE.OrthographicCamera).isOrthographicCamera
 
 export type InternalState = {
   active: boolean
@@ -95,9 +114,9 @@ export type RootState = {
   pointer: THREE.Vector2
   /** @deprecated Normalized event coordinates, use "pointer" instead! */
   mouse: THREE.Vector2
-  /* Whether to enable r139's THREE.ColorManagement.legacyMode */
+  /* Whether to enable r139's THREE.ColorManagement */
   legacy: boolean
-  /** Shortcut to gl.outputEncoding = LinearEncoding */
+  /** Shortcut to gl.outputColorSpace = THREE.LinearSRGBColorSpace */
   linear: boolean
   /** Shortcut to gl.toneMapping = NoTonemapping */
   flat: boolean
@@ -116,20 +135,29 @@ export type RootState = {
     ) => Omit<Viewport, 'dpr' | 'initialDpr'>
   }
   /** Flags the canvas for render, but doesn't render in itself */
-  invalidate: () => void
+  invalidate: (frames?: number) => void
   /** Advance (render) one step */
   advance: (timestamp: number, runGlobalEffects?: boolean) => void
   /** Shortcut to setting the event layer */
   setEvents: (events: Partial<EventManager<any>>) => void
-  /** Shortcut to manual sizing */
-  setSize: (width: number, height: number) => void
+  /**
+   * Shortcut to manual sizing
+   */
+  setSize: (
+    width: number,
+    height: number,
+    /** @deprecated `updateStyle` is now disabled for OffscreenCanvas and will be removed in v9. */
+    updateStyle?: boolean,
+    top?: number,
+    left?: number,
+  ) => void
   /** Shortcut to manual setting the pixel ratio */
   setDpr: (dpr: Dpr) => void
   /** Shortcut to frameloop flags */
   setFrameloop: (frameloop?: 'always' | 'demand' | 'never') => void
   /** When the canvas was clicked but nothing was hit */
   onPointerMissed?: (event: MouseEvent) => void
-  /** If this state model is layerd (via createPortal) then this contains the previous layer */
+  /** If this state model is layered (via createPortal) then this contains the previous layer */
   previousRoot?: UseBoundStore<RootState, StoreApi<RootState>>
   /** Internals */
   internal: InternalState
@@ -137,10 +165,7 @@ export type RootState = {
 
 const context = React.createContext<UseBoundStore<RootState>>(null!)
 
-const createStore = (
-  invalidate: (state?: RootState) => void,
-  advance: (timestamp: number, runGlobalEffects?: boolean, state?: RootState, frame?: THREE.XRFrame) => void,
-): UseBoundStore<RootState> => {
+const createStore = (invalidate: Invalidate, advance: Advance): UseBoundStore<RootState> => {
   const rootState = create<RootState>((set, get) => {
     const position = new THREE.Vector3()
     const defaultTarget = new THREE.Vector3()
@@ -149,19 +174,19 @@ const createStore = (
       camera: Camera = get().camera,
       target: THREE.Vector3 | Parameters<THREE.Vector3['set']> = defaultTarget,
       size: Size = get().size,
-    ) {
-      const { width, height } = size
+    ): Omit<Viewport, 'dpr' | 'initialDpr'> {
+      const { width, height, top, left } = size
       const aspect = width / height
-      if (target instanceof THREE.Vector3) tempTarget.copy(target)
-      else tempTarget.set(...target)
+      if ((target as THREE.Vector3).isVector3) tempTarget.copy(target as THREE.Vector3)
+      else tempTarget.set(...(target as Parameters<THREE.Vector3['set']>))
       const distance = camera.getWorldPosition(position).distanceTo(tempTarget)
       if (isOrthographicCamera(camera)) {
-        return { width: width / camera.zoom, height: height / camera.zoom, factor: 1, distance, aspect }
+        return { width: width / camera.zoom, height: height / camera.zoom, top, left, factor: 1, distance, aspect }
       } else {
         const fov = (camera.fov * Math.PI) / 180 // convert vertical fov to radians
         const h = 2 * Math.tan(fov / 2) * distance // visible height
         const w = h * (width / height)
-        return { width: w, height: h, factor: width / w, distance, aspect }
+        return { width: w, height: h, top, left, factor: width / w, distance, aspect }
       }
     }
 
@@ -171,7 +196,7 @@ const createStore = (
 
     const pointer = new THREE.Vector2()
 
-    return {
+    const rootState: RootState = {
       set,
       get,
 
@@ -181,14 +206,14 @@ const createStore = (
       raycaster: null as unknown as THREE.Raycaster,
       events: { priority: 1, enabled: true, connected: false },
       xr: null as unknown as { connect: () => void; disconnect: () => void },
+      scene: null as unknown as THREE.Scene,
 
-      invalidate: () => invalidate(get()),
+      invalidate: (frames = 1) => invalidate(get(), frames),
       advance: (timestamp: number, runGlobalEffects?: boolean) => advance(timestamp, runGlobalEffects, get()),
 
       legacy: false,
       linear: false,
       flat: false,
-      scene: prepare<THREE.Scene>(new THREE.Scene()),
 
       controls: null,
       clock: new THREE.Clock(),
@@ -217,12 +242,14 @@ const createStore = (
         },
       },
 
-      size: { width: 0, height: 0 },
+      size: { width: 0, height: 0, top: 0, left: 0, updateStyle: false },
       viewport: {
         initialDpr: 0,
         dpr: 0,
         width: 0,
         height: 0,
+        top: 0,
+        left: 0,
         aspect: 0,
         distance: 0,
         factor: 0,
@@ -231,9 +258,9 @@ const createStore = (
 
       setEvents: (events: Partial<EventManager<any>>) =>
         set((state) => ({ ...state, events: { ...state.events, ...events } })),
-      setSize: (width: number, height: number) => {
+      setSize: (width: number, height: number, updateStyle?: boolean, top?: number, left?: number) => {
         const camera = get().camera
-        const size = { width, height }
+        const size = { width, height, top: top || 0, left: left || 0, updateStyle }
         set((state) => ({ size, viewport: { ...state.viewport, ...getCurrentViewport(camera, defaultTarget, size) } }))
       },
       setDpr: (dpr: Dpr) =>
@@ -274,65 +301,58 @@ const createStore = (
           priority: number,
           store: UseBoundStore<RootState, StoreApi<RootState>>,
         ) => {
-          set(({ internal }) => ({
-            internal: {
-              ...internal,
-              // If this subscription was given a priority, it takes rendering into its own hands
-              // For that reason we switch off automatic rendering and increase the manual flag
-              // As long as this flag is positive there can be no internal rendering at all
-              // because there could be multiple render subscriptions
-              priority: internal.priority + (priority > 0 ? 1 : 0),
-              // Register subscriber and sort layers from lowest to highest, meaning,
-              // highest priority renders last (on top of the other frames)
-              subscribers: [...internal.subscribers, { ref, priority, store }].sort((a, b) => a.priority - b.priority),
-            },
-          }))
+          const internal = get().internal
+          // If this subscription was given a priority, it takes rendering into its own hands
+          // For that reason we switch off automatic rendering and increase the manual flag
+          // As long as this flag is positive there can be no internal rendering at all
+          // because there could be multiple render subscriptions
+          internal.priority = internal.priority + (priority > 0 ? 1 : 0)
+          internal.subscribers.push({ ref, priority, store })
+          // Register subscriber and sort layers from lowest to highest, meaning,
+          // highest priority renders last (on top of the other frames)
+          internal.subscribers = internal.subscribers.sort((a, b) => a.priority - b.priority)
           return () => {
-            set(({ internal }) => ({
-              internal: {
-                ...internal,
-                // Decrease manual flag if this subscription had a priority
-                priority: internal.priority - (priority > 0 ? 1 : 0),
-                // Remove subscriber from list
-                subscribers: internal.subscribers.filter((s) => s.ref !== ref),
-              },
-            }))
+            const internal = get().internal
+            if (internal?.subscribers) {
+              // Decrease manual flag if this subscription had a priority
+              internal.priority = internal.priority - (priority > 0 ? 1 : 0)
+              // Remove subscriber from list
+              internal.subscribers = internal.subscribers.filter((s) => s.ref !== ref)
+            }
           }
         },
       },
     }
+
+    return rootState
   })
 
   const state = rootState.getState()
 
-  // Resize camera and renderer on changes to size and pixelratio
   let oldSize = state.size
   let oldDpr = state.viewport.dpr
+  let oldCamera = state.camera
   rootState.subscribe(() => {
-    const { camera, size, viewport, gl } = rootState.getState()
-    if (size !== oldSize || viewport.dpr !== oldDpr) {
-      // https://github.com/pmndrs/react-three-fiber/issues/92
-      // Do not mess with the camera if it belongs to the user
-      if (!camera.manual) {
-        if (isOrthographicCamera(camera)) {
-          camera.left = size.width / -2
-          camera.right = size.width / 2
-          camera.top = size.height / 2
-          camera.bottom = size.height / -2
-        } else {
-          camera.aspect = size.width / size.height
-        }
-        camera.updateProjectionMatrix()
-        // https://github.com/pmndrs/react-three-fiber/issues/178
-        // Update matrix world since the renderer is a frame late
-        camera.updateMatrixWorld()
-      }
-      // Update renderer
-      gl.setPixelRatio(viewport.dpr)
-      gl.setSize(size.width, size.height)
+    const { camera, size, viewport, gl, set } = rootState.getState()
 
+    // Resize camera and renderer on changes to size and pixelratio
+    if (size.width !== oldSize.width || size.height !== oldSize.height || viewport.dpr !== oldDpr) {
       oldSize = size
       oldDpr = viewport.dpr
+      // Update camera & renderer
+      updateCamera(camera, size)
+      gl.setPixelRatio(viewport.dpr)
+
+      const updateStyle =
+        size.updateStyle ?? (typeof HTMLCanvasElement !== 'undefined' && gl.domElement instanceof HTMLCanvasElement)
+      gl.setSize(size.width, size.height, updateStyle)
+    }
+
+    // Update viewport once the camera changes
+    if (camera !== oldCamera) {
+      oldCamera = camera
+      // Update viewport
+      set((state) => ({ viewport: { ...state.viewport, ...state.viewport.getCurrentViewport(camera) } }))
     }
   })
 

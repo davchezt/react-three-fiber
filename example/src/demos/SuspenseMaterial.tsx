@@ -7,10 +7,10 @@ export default function App() {
   const [arg, inc] = useReducer((x) => x + 1, 0)
   return (
     <Canvas>
-      <ambientLight />
+      <ambientLight intensity={Math.PI} />
       <directionalLight />
       <mesh onClick={inc}>
-        <sphereBufferGeometry args={[1, 64, 32]} />
+        <sphereGeometry args={[1, 64, 32]} />
         <Suspense fallback={<FallbackMaterial />}>
           <SlowMaterial arg={arg} />
         </Suspense>

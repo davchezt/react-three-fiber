@@ -13,7 +13,7 @@ function Box1(props: any) {
       onClick={(e) => props.setActive(!props.active)}
       onPointerOver={(e) => setHover(true)}
       onPointerOut={(e) => setHover(false)}>
-      <boxBufferGeometry />
+      <boxGeometry />
       <meshStandardMaterial color={hovered ? 'hotpink' : 'orange'} />
     </mesh>
   )
@@ -31,7 +31,7 @@ function Box2(props: any) {
         onClick={(e) => props.setActive(!props.active)}
         onPointerOver={(e) => setHover(true)}
         onPointerOut={(e) => setHover(false)}>
-        <boxBufferGeometry />
+        <boxGeometry />
         <meshStandardMaterial color={hovered ? 'green' : 'blue'} />
       </mesh>
     </group>
@@ -51,7 +51,7 @@ function Switcher() {
 export default function App() {
   return (
     <Canvas orthographic camera={{ zoom: 100 }}>
-      <ambientLight />
+      <ambientLight intensity={Math.PI} />
       <Switcher />
     </Canvas>
   )

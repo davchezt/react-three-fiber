@@ -4,6 +4,7 @@ import { useDrag } from '@use-gesture/react'
 
 function Obj({ scale = 1, z = 0, opacity = 1 }) {
   const { viewport } = useThree()
+  const [hovered, hover] = useState(false)
   const [position, set] = useState<[number, number, number]>([0, 0, z])
   const bind = useDrag(({ event, offset: [x, y] }) => {
     event.stopPropagation()
@@ -22,6 +23,14 @@ function Obj({ scale = 1, z = 0, opacity = 1 }) {
       ref={mesh}
       position={position}
       {...(bind() as any)}
+      onPointerOver={(e) => {
+        e.stopPropagation()
+        hover(true)
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation()
+        hover(false)
+      }}
       onClick={(e) => {
         e.stopPropagation()
         console.log('clicked', { z })
@@ -29,7 +38,7 @@ function Obj({ scale = 1, z = 0, opacity = 1 }) {
       castShadow
       scale={scale}>
       <dodecahedronGeometry args={[1, 0]} />
-      <meshStandardMaterial transparent opacity={opacity} color={true ? 'hotpink' : 'orange'} />
+      <meshStandardMaterial transparent opacity={opacity} color={hovered ? 'hotpink' : 'orange'} />
     </mesh>
   )
 }
@@ -37,9 +46,9 @@ function Obj({ scale = 1, z = 0, opacity = 1 }) {
 export default function App() {
   return (
     <Canvas>
-      <ambientLight intensity={0.5} />
-      <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} />
-      <pointLight position={[-10, -10, -10]} />
+      <ambientLight intensity={0.5 * Math.PI} />
+      <spotLight decay={0} position={[10, 10, 10]} angle={0.15} penumbra={1} />
+      <pointLight decay={0} position={[-10, -10, -10]} />
       <Obj z={-1} scale={0.5} />
       <Obj opacity={0.8} />
     </Canvas>

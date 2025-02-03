@@ -5,9 +5,7 @@ import { useGLTF, Environment, OrbitControls } from '@react-three/drei'
 
 function Soda(props: any) {
   const [hovered, spread] = useHover()
-  const { nodes, materials } = useGLTF(
-    'https://market-assets.fra1.cdn.digitaloceanspaces.com/market-assets/models/soda-bottle/model.gltf',
-  ) as any
+  const { nodes, materials } = useGLTF('/bottle.gltf') as any
   return (
     <group {...props} {...spread} dispose={null}>
       <mesh geometry={nodes.Mesh_sodaBottle.geometry}>
@@ -59,8 +57,8 @@ function Plane({ stop = false, color, position }: any) {
 const App = () => (
   <Canvas camera={{ fov: 75, position: [0, 0, -2.25] }}>
     <Suspense fallback={null}>
-      <ambientLight />
-      <pointLight position={[10, 10, 10]} />
+      <ambientLight intensity={Math.PI} />
+      <pointLight decay={0} position={[10, 10, 10]} />
       <Plane color="lightblue" position={[0.5, 0, -1]} />
       <Plane stop color="aquamarine" position={[0, 0, -0.5]} />
       <Plane color="hotpink" position={[-0.5, 0, 0]} />

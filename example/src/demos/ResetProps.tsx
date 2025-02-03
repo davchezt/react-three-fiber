@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import React, { memo, useEffect, useState, useRef } from 'react'
-import { Canvas, useThree, useFrame, extend } from '@react-three/fiber'
+import React, { useEffect, useState, useRef } from 'react'
+import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 
 function AdaptivePixelRatio() {
@@ -36,7 +36,7 @@ function AdaptiveEvents() {
 }
 
 function Scene() {
-  const group = useRef<THREE.Group>()
+  const group = useRef<THREE.Group>(null!)
   const [showCube, setShowCube] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [color, setColor] = useState('pink')
@@ -50,9 +50,9 @@ function Scene() {
 
   return (
     <>
-      <ambientLight intensity={0.5} />
-      <pointLight position={[10, 10, 10]} intensity={2} />
-      <pointLight position={[-10, -10, -10]} color="red" intensity={4} />
+      <ambientLight intensity={0.5 * Math.PI} />
+      <pointLight decay={0} position={[10, 10, 10]} intensity={2} />
+      <pointLight decay={0} position={[-10, -10, -10]} color="red" intensity={4} />
 
       <mesh
         scale={hovered ? 1.25 : 1}

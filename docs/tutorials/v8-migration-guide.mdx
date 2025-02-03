@@ -1,7 +1,7 @@
 ---
 title: 'v8 Migration Guide'
 description: Changes and new features with v8 and react 18
-nav: 13
+nav: 12
 ---
 
 Work on version 8 has begun 3 Sep 2021 and is perhaps the biggest update to Fiber yet. We've tried our best to keep breaking-changes to a minimum, they mostly affect rarely used api's like `attach`. This release brings a ton of performance related fixes, but also includes some new and ground breaking features.
@@ -14,7 +14,7 @@ With React 18 and Expo 43, you can now ship threejs goodness across web and nati
 
 Now expo-gl, which does the hard lifting, has existed for a while, but we've addressed some of the common concerns related to interop and making the three eco system readily work in the native space. For instance, you handle assets the same exact way you'd treat them in a web app.
 
-See [installation](/react-three-fiber/getting-started/installation#react-native) to get started with managed Expo or bare React Native apps.
+See [installation](/getting-started/installation#react-native) to get started with managed Expo or bare React Native apps.
 
 ```diff
 - import { Canvas, useLoader } from '@react-three/fiber'
@@ -24,7 +24,7 @@ See [installation](/react-three-fiber/getting-started/installation#react-native)
 + import { useGLTF } from '@react-three/drei/native'
 ```
 
-This is complete with support for Pressability events and native threejs loaders. See [events](/react-three-fiber/api/events) for a complete list of events.
+This is complete with support for Pressability events and native threejs loaders. See [events](/api/events) for a complete list of events.
 
 ```jsx
 <mesh
@@ -82,12 +82,12 @@ This was the most common setting in the wild, so it was brought in as a better d
 
 ## Color management
 
-Color management is now being handled by Three R139. Therefore we set `THREE.ColorManagement.legacyMode` to `false` and cede to touch colors and textures since everything will now be converted from sRGB to linear space by Three itself.
+Color management is now being handled by Three R139. Therefore we set `THREE.ColorManagement.enabled` to `true` and cede to touch colors and textures since everything will now be converted from sRGB to linear color space by Three itself.
 
 You can manipulate this yourself with the `legacy` prop:
 
 ```jsx
-// sets THREE.ColorManagement.legacyMode = true
+// sets THREE.ColorManagement.enabled = false
 <Canvas legacy={true}>
 ```
 
@@ -135,7 +135,7 @@ Please be careful, this is an extreme stress test. It creates so much load that 
   </a>
 </p>
 
-## Conditional rendering with frameloop
+## Conditional rendering with `frameloop`
 
 `frameloop` can now be toggled to render conditionally. This is useful to toggle on user interaction or while in frame.
 
@@ -166,7 +166,7 @@ useEffect(() => {
 <Canvas ref={canvasRef} frameloop={frameloop} />
 ```
 
-## Expanded gl prop
+## Expanded `gl` prop
 
 The `gl` prop can now accept both constructor args and renderer properties like the `camera` prop.
 
@@ -193,7 +193,7 @@ The `vr` prop was removed in favor of automatic WebXR switching. Whenever a sess
 + <Canvas />
 ```
 
-### Extended useFrame
+### Extended `useFrame`
 
 In addition to the automatic rendering, useFrame will expose the current [`XRFrame`](https://developer.mozilla.org/en-US/docs/Web/API/XRFrame) obtained via [XRSession#requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/XRSession/requestAnimationFrame).
 
@@ -203,7 +203,7 @@ useFrame((state: RootState, delta: number, frame?: THREE.XRFrame) => { ... })
 
 This removes the need for custom rendering loops when using WebXR pose data and abstractions like `useXRFrame` of [@react-three/xr](https://github.com/pmndrs/react-xr).
 
-## Manual camera manipulation
+## Manual `camera` manipulation
 
 By default Fiber is responsive and will set up cameras properly on resize (aspect ratio etc).
 
@@ -217,12 +217,12 @@ This is also supported by all cameras that you create, be it a THREE.Perspective
 
 ```jsx
 import { PerspectiveCamera } from '@react-three/drei'
-;<Canvas>
+<Canvas>
   <PerspectiveCamera makeDefault manual />
 </Canvas>
 ```
 
-## Unified attach API
+## Unified `attach` API
 
 Previously, attach had multiple signatures:
 
@@ -287,12 +287,12 @@ Arrays must be explcit now:
 
 ```diff
 <mesh>
--  {colors.map((color, index) => <meshBasicMaterial key={index} attachArray="material" color={color} />}
-+  {colors.map((color, index) => <meshBasicMaterial key={index} attach={`material-${index}`} color={color} />}
+-  {colors.map((color, index) => <meshBasicMaterial key={index} attachArray="material" color={color} />)}
++  {colors.map((color, index) => <meshBasicMaterial key={index} attach={`material-${index}`} color={color} />)}
 </mesh>
 ```
 
-## Spread Canvas props
+## Spread `Canvas` props
 
 The `<Canvas />` can now accept non-render props to spread as native props: styles, classes, events, a11y, ...
 
@@ -303,7 +303,7 @@ The `<Canvas />` can now accept non-render props to spread as native props: styl
 + <Canvas aria-describedby={...} />
 ```
 
-## New createRoot API
+## New `createRoot` API
 
 `render` is depreciated in v8 for the new `createRoot` signature.
 
@@ -331,8 +331,8 @@ const root = createRoot(document.querySelector('#root'))
 window.addEventListener('resize', () => {
   root.configure({
     events,
-    camera: { position: [0, 0, 50]., fov: 50 },
-    size: { width: window.innerWidth, height: window.innerHeight }
+    camera: { position: [0, 0, 50], fov: 50 },
+    size: { width: window.innerWidth, height: window.innerHeight },
   })
   root.render(<App />)
 })
@@ -352,7 +352,7 @@ This is a custom-renderer example using the createRoot api:
   </a>
 </p>
 
-## Tree-shaking via extend
+## Tree-shaking via `extend`
 
 The underlying reconciler no longer pulls in the THREE namespace automatically.
 
@@ -407,7 +407,7 @@ createRoot(canvasNode).render(
 
 No changes are necessary for `@react-three/test-renderer` as THREE is extended automatically.
 
-## createPortal creates a state enclave
+## `createPortal` creates a state enclave
 
 `createPortal` allows you to write a declarative JSX scene into a pre-existing, foreign object. This has been very useful for portals, heads-up displays, view-cubes, view splitting, etc.
 
